@@ -8,8 +8,8 @@ import qs.Ui
 
 Panel {
   id: root
-  moduleName: "bvr.github-actions"
-  ipcTarget: "bvr.github-actions"
+  moduleName: "crud.github-actions"
+  ipcTarget: "crud.github-actions"
   manageIpc: false
 
   // "list" | "settings" | "trigger"

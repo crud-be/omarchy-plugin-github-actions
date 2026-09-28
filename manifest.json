@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "bvr.github-actions",
+  "id": "crud.github-actions",
   "name": "GitHub Actions",
   "version": "0.1.0",
   "author": "BVR Code",

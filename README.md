@@ -26,17 +26,17 @@ Workflows refresh every 5 minutes by default (configurable in the widget setting
 | Escape | Go back or close |
 | Tab | Switch to the next bar panel |
 
-IPC target `bvr.github-actions` provides `open`, `close`, `toggle`, and `refresh`:
+IPC target `crud.github-actions` provides `open`, `close`, `toggle`, and `refresh`:
 
 ```sh
-qs ipc -p /usr/share/omarchy/shell call bvr.github-actions refresh
+qs ipc -p /usr/share/omarchy/shell call crud.github-actions refresh
 ```
 
 ## Update or remove
 
 ```sh
-omarchy plugin update bvr.github-actions
-omarchy plugin remove bvr.github-actions
+omarchy plugin update crud.github-actions
+omarchy plugin remove crud.github-actions
 ```
 
 If the shell keeps showing old components after an update, run `omarchy restart shell`.
@@ -50,9 +50,9 @@ Dynamic workflows (such as Pages or Dependabot) and workflows disabled on GitHub
 ## Development
 
 ```sh
-ln -s "$PWD" ~/.config/omarchy/plugins/bvr.github-actions
+ln -s "$PWD" ~/.config/omarchy/plugins/crud.github-actions
 omarchy-shell shell rescanPlugins
-omarchy plugin enable bvr.github-actions
+omarchy plugin enable crud.github-actions
 omarchy plugin validate .
 python3 -m unittest discover -s tests
 ```
