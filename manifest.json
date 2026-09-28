@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "author": "BVR Code",
   "license": "MIT",
-  "description": "GitHub Actions workflows for your repositories in the Omarchy bar.",
+  "description": "Trigger GitHub Actions workflows of the repositories you pick from the Omarchy bar.",
   "kinds": [
     "bar-widget"
   ],
@@ -15,7 +15,7 @@
   },
   "barWidget": {
     "displayName": "GitHub Actions",
-    "description": "See running and last workflow runs per repository, and trigger workflows.",
+    "description": "Trigger workflows and see their last runs for the repositories you add.",
     "category": "Development",
     "aliases": [
       "github",

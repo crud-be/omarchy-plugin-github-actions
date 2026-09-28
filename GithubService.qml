@@ -13,6 +13,14 @@ Item {
   property bool authenticated: false
   property string user: ""
   property string error: ""
+  property bool refreshQueued: false
+
+  // Repository picker
+  property var available: []
+  property bool availableLoading: false
+
+  // Last runs of the selected workflow, keyed by workflow id
+  property var runs: ({})
 
   // Trigger form state
   property bool inputsLoading: false
@@ -31,21 +39,60 @@ Item {
     var result = []
     for (var i = 0; i < repos.length; i++) {
       var workflows = repos[i].workflows.filter(function(w) { return hidden.indexOf(w.id) < 0 })
-      if (workflows.length > 0) result.push(Object.assign({}, repos[i], { workflows: workflows }))
+      if (workflows.length > 0 || repos[i].error || repos[i].loading) result.push(Object.assign({}, repos[i], { workflows: workflows }))
     }
     return result
   }
   readonly property int runningCount: {
     var count = 0
     for (var i = 0; i < visibleRepos.length; i++)
-      count += visibleRepos[i].workflows.filter(function(w) { return w.run && w.run.running }).length
+      count += visibleRepos[i].workflows.filter(function(w) { return w.running }).length
     return count
   }
 
   function refresh() {
-    if (listProcess.running) return
+    if (listProcess.running) {
+      refreshQueued = true
+      return
+    }
     loading = true
     listProcess.run(["list"], "")
+  }
+
+  function names() {
+    return repos.map(function(r) { return r.name })
+  }
+
+  function saveRepos(list) {
+    reposProcess.run(["set-repos"], JSON.stringify(list))
+  }
+
+  function addRepo(name) {
+    name = String(name || "").trim().replace(/^https:\/\/github\.com\//, "").replace(/\.git$|\/$/g, "")
+    if (!/^[\w.-]+\/[\w.-]+$/.test(name) || names().indexOf(name) >= 0) return false
+    repos = repos.concat([{ name: name, defaultBranch: "main", workflows: [], loading: true }])
+    saveRepos(names())
+    return true
+  }
+
+  function removeRepo(name) {
+    repos = repos.filter(function(r) { return r.name !== name })
+    saveRepos(names())
+  }
+
+  function loadAvailable() {
+    if (availableProcess.running || available.length > 0) return
+    availableLoading = true
+    availableProcess.run(["repos"], "")
+  }
+
+  function loadRuns(repo, workflowId) {
+    if (runsProcess.running) {
+      runsProcess.pending = [repo, workflowId]
+      return
+    }
+    runsProcess.workflowId = workflowId
+    runsProcess.run(["runs", repo, workflowId], "")
   }
 
   function setHidden(id, isHidden) {
@@ -62,10 +109,15 @@ Item {
     inputsProcess.run(["inputs", repo, workflow.path, ref], "")
   }
 
-  function dispatch(repo, workflow, ref, values) {
+  // Runs the workflow once per input set, one after another.
+  function dispatch(repo, workflow, ref, inputSets) {
+    afterDispatch.repo = repo
+    afterDispatch.workflowId = workflow.id
     triggerError = ""
     dispatching = true
-    dispatchProcess.run(["dispatch", repo, workflow.id], JSON.stringify({ ref: ref, inputs: values }))
+    dispatchProcess.queue = inputSets.slice(1)
+    dispatchProcess.request = [repo, workflow.id, ref]
+    dispatchProcess.run(["dispatch", repo, workflow.id], JSON.stringify({ ref: ref, inputs: inputSets[0] }))
   }
 
   Timer {
@@ -79,14 +131,23 @@ Item {
 
   Timer {
     id: afterDispatch
+    property string repo: ""
+    property string workflowId: ""
     interval: 4000
-    onTriggered: root.refresh()
+    onTriggered: {
+      root.refresh()
+      root.loadRuns(repo, workflowId)
+    }
   }
 
   Helper {
     id: listProcess
     onDone: function(result) {
       root.loading = false
+      if (root.refreshQueued) {
+        root.refreshQueued = false
+        Qt.callLater(root.refresh)
+      }
       if (result.auth === false) {
         root.authenticated = false
         root.user = ""
@@ -106,6 +167,35 @@ Item {
   Helper { id: hiddenProcess }
 
   Helper {
+    id: reposProcess
+    onDone: root.refresh()
+  }
+
+  Helper {
+    id: availableProcess
+    onDone: function(result) {
+      root.availableLoading = false
+      if (result.ok) root.available = result.repos
+    }
+  }
+
+  Helper {
+    id: runsProcess
+    property string workflowId: ""
+    property var pending: null
+    onDone: function(result) {
+      var next = Object.assign({}, root.runs)
+      next[workflowId] = result.ok ? result.runs : []
+      root.runs = next
+      if (pending) {
+        var request = pending
+        pending = null
+        Qt.callLater(function() { root.loadRuns(request[0], request[1]) })
+      }
+    }
+  }
+
+  Helper {
     id: inputsProcess
     onDone: function(result) {
       root.inputsLoading = false
@@ -116,7 +206,17 @@ Item {
 
   Helper {
     id: dispatchProcess
+    property var queue: []
+    property var request: []
     onDone: function(result) {
+      if (result.ok && queue.length > 0) {
+        var values = queue[0]
+        queue = queue.slice(1)
+        Qt.callLater(function() {
+          dispatchProcess.run(["dispatch", request[0], request[1]], JSON.stringify({ ref: request[2], inputs: values }))
+        })
+        return
+      }
       root.dispatching = false
       if (!result.ok) {
         root.triggerError = result.error || "Could not trigger the workflow"
