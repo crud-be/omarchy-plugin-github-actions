@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
@@ -16,6 +16,7 @@ from urllib.request import Request, urlopen
 
 API = "https://api.github.com"
 RUNNING = {"queued", "in_progress", "waiting", "requested", "pending"}
+NOT_STARTED = {"queued", "requested", "pending"}
 
 
 def config_dir():
@@ -93,10 +94,22 @@ def age(timestamp, now=None):
     return "now"
 
 
+def is_running(run, now=None):
+    status = run.get("status")
+    if status not in NOT_STARTED:
+        return status in RUNNING
+    # GitHub fails jobs that stay queued for 24 hours, so an older run that never started is stuck for good.
+    try:
+        updated = datetime.fromisoformat(str(run.get("updated_at") or run.get("created_at")).replace("Z", "+00:00"))
+        return (now or datetime.now(timezone.utc)) - updated < timedelta(hours=24)
+    except (ValueError, TypeError):
+        return True
+
+
 def run_summary(run):
     status = str(run.get("status", ""))
     return {
-        "running": status in RUNNING,
+        "running": is_running(run),
         "status": status,
         "conclusion": str(run.get("conclusion") or ""),
         "url": str(run.get("html_url", "")),
@@ -108,8 +121,8 @@ def run_summary(run):
     }
 
 
-def running_workflows(runs):
-    return {run.get("workflow_id") for run in runs if run.get("status") in RUNNING}
+def running_workflows(runs, now=None):
+    return {run.get("workflow_id") for run in runs if is_running(run, now)}
 
 
 def last_run_times(runs):

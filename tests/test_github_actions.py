@@ -57,6 +57,16 @@ on:
         ]
         self.assertEqual(ga.running_workflows(runs), {1, 3})
 
+    def test_stuck_queued_runs_are_not_running(self):
+        now = datetime(2026, 10, 4, 16, 0, tzinfo=timezone.utc)
+        runs = [
+            {"workflow_id": 1, "status": "queued", "updated_at": "2026-09-30T19:00:51Z"},
+            {"workflow_id": 2, "status": "queued", "updated_at": "2026-10-04T15:00:00Z"},
+            {"workflow_id": 3, "status": "in_progress", "updated_at": "2026-09-30T19:00:51Z"},
+            {"workflow_id": 4, "status": "waiting", "updated_at": "2026-09-30T19:00:51Z"},
+        ]
+        self.assertEqual(ga.running_workflows(runs, now), {2, 3, 4})
+
     def test_workflows_sorted_by_last_run(self):
         runs = [
             {"workflow_id": 2, "created_at": "2026-09-28T10:00:00Z"},
